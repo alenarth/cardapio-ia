@@ -2,6 +2,7 @@
 tests) never depend on a specific provider."""
 
 import os
+import re
 from typing import Protocol
 
 from .schema import LlmMenu
@@ -20,6 +21,31 @@ Regras:
 """
 
 
+_SKIP = ("lite", "image", "tts", "audio", "live", "embedding", "thinking", "exp", "latest", "computer")
+
+
+def pick_flash_model(model_names: list[str]) -> str:
+    """Choose the newest Gemini Flash model from the ones this API key can use.
+
+    Model names change every few months, so instead of hard-coding one we
+    look at what the API offers. Stable versions win over previews.
+    """
+    def version(name: str) -> tuple[int, ...]:
+        return tuple(int(n) for n in re.findall(r"\d+", name.split("flash")[0]))
+
+    names = [n.removeprefix("models/") for n in model_names]
+    flash = [n for n in names if n.startswith("gemini-") and "flash" in n and not any(s in n for s in _SKIP)]
+    stable = [n for n in flash if "preview" not in n]
+    candidates = stable or flash
+    if not candidates:
+        raise RuntimeError("Nenhum modelo Gemini Flash disponível para esta chave de API.")
+    return max(candidates, key=lambda n: (version(n), -len(n)))
+
+
+def available_models(client) -> list[str]:
+    return [m.name for m in client.models.list() if "generateContent" in (getattr(m, "supported_actions", None) or [])]
+
+
 class MenuLLM(Protocol):
     def extract(self, image_png: bytes) -> LlmMenu: ...
 
@@ -34,7 +60,7 @@ class GeminiMenuLLM:
         if not api_key:
             raise RuntimeError("Defina a variável de ambiente GEMINI_API_KEY.")
         self._client = genai.Client(api_key=api_key)
-        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+        self.model = model or os.environ.get("GEMINI_MODEL") or pick_flash_model(available_models(self._client))
 
     def extract(self, image_png: bytes) -> LlmMenu:
         from google.genai import types
