@@ -59,20 +59,30 @@ def show_menu(result) -> None:
 def run_extraction(paths: list[Path]) -> None:
     try:
         with st.spinner("Lendo o cardápio com IA..."):
-            result = extract_menu(paths, get_llm())
+            llm = get_llm()
+            result = extract_menu(paths, llm)
     except RuntimeError as error:
         st.error(str(error))
         return
     show_menu(result)
+    st.caption(f"Modelo: {llm.model}")
 
 
 def run_evaluation(examples: list[Path]) -> None:
-    llm = get_llm()
+    try:
+        llm = get_llm()
+    except RuntimeError as error:
+        st.error(str(error))
+        return
     total = Scores(0, 0, 0, 0, 0)
     rows, bar = [], st.progress(0.0, text="Avaliando...")
     for i, image in enumerate(examples, start=1):
         truth = Menu.model_validate(json.loads(image.with_suffix(".json").read_text(encoding="utf-8")))
-        result = extract_menu([image], llm)
+        try:
+            result = extract_menu([image], llm)
+        except RuntimeError as error:
+            st.warning(f"Avaliação interrompida no cardápio {i}: {error}")
+            break
         scores = score_menu(result.menu, truth)
         total += scores
         rows.append({"cardápio": image.name, "itens reais": scores.true_items, "F1": scores.f1,
@@ -80,10 +90,13 @@ def run_evaluation(examples: list[Path]) -> None:
                      "segundos": result.seconds})
         bar.progress(i / len(examples), text=f"Avaliando {i}/{len(examples)}...")
     bar.empty()
+    if not rows:
+        return
     df = pd.DataFrame(rows)
     st.markdown(
         "| Métrica | Valor |\n|---|---|\n"
-        f"| Cardápios | {len(examples)} |\n"
+        f"| Modelo | {llm.model} |\n"
+        f"| Cardápios | {len(rows)} |\n"
         f"| Itens no gabarito | {total.true_items} |\n"
         f"| Precisão | {total.precision:.1%} |\n"
         f"| Recall | {total.recall:.1%} |\n"
