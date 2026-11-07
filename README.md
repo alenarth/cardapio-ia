@@ -2,7 +2,7 @@
 
 Transforma **foto ou PDF de cardápio** em **dados estruturados** (itens, preços, categorias e tamanhos), prontos para cadastro em um app de delivery, usando um LLM multimodal com saída em JSON validada.
 
-**Demo:** [SEU_LINK.streamlit.app](https://SEU_LINK.streamlit.app)
+**Demo:** [cardapio-ia.streamlit.app](https://cardapio-ia.streamlit.app)
 
 ![tests](https://github.com/alenarth/cardapio-ia/actions/workflows/tests.yml/badge.svg)
 
@@ -33,6 +33,7 @@ fotos / PDF ──► páginas PNG ──► LLM multimodal ──► JSON (sche
 - **Alertas em vez de confiança cega:** item sem preço ou com preço suspeito aparece sinalizado para revisão. Num fluxo real, isso define o que vai para um humano.
 - **Provedor de LLM atrás de uma interface (`MenuLLM`):** trocar Gemini por outro modelo é mudar uma classe. Os testes usam um LLM falso e rodam sem chave nem internet.
 - **Avaliação com gabarito:** sem métrica não dá pra saber se uma mudança no prompt melhorou ou piorou.
+- **Resiliência a falhas da API:** o modelo é escolhido automaticamente entre os Gemini Flash disponíveis para a chave (os nomes mudam a cada poucos meses). Se o modelo estiver sobrecarregado (erro 5xx), travar (timeout de 90 s) ou estourar a cota (429), o app tenta de novo e passa para o próximo modelo, em vez de travar a tela. Durante o desenvolvimento isso aconteceu de verdade: o modelo mais novo estava respondendo "alta demanda".
 
 ## Avaliação
 
@@ -44,14 +45,20 @@ A aba **Avaliação** da demo (ou o script `scripts/evaluate.py`) compara a extr
 - **Recall:** dos itens reais, quantos foram encontrados.
 - **Preço correto** e **categoria correta** nos itens encontrados.
 
-| Métrica | Sintéticos (15 cardápios) |
+| Métrica | Resultado |
 |---|---|
-| Precisão | _preencher_ |
-| Recall | _preencher_ |
-| F1 | _preencher_ |
-| Preço correto | _preencher_ |
-| Categoria correta | _preencher_ |
-| Tempo médio por cardápio | _preencher_ |
+| Modelo | gemini-3.6-flash |
+| Cardápios avaliados | 8 (128 itens no gabarito) |
+| Precisão | 100% |
+| Recall | 100% |
+| F1 | 100% |
+| Preço correto | 100% |
+| Categoria correta | 100% |
+| Tempo médio por cardápio | 9,5 s |
+
+Rodado em 07/11/2026 pela aba **Avaliação** da demo. A rodada parou no 9º cardápio porque bateu o limite diário do plano gratuito do Gemini.
+
+**Leitura honesta do resultado:** os cardápios sintéticos são limpos e bem diagramados, então 100% aqui mostra que o pipeline funciona de ponta a ponta, não que ele acerta 100% em fotos reais. O próximo passo é medir num conjunto de fotos reais rotuladas à mão.
 
 > Para reproduzir: `python -m scripts.generate_synthetic` e depois `python -m scripts.evaluate --data data/synthetic`.
 
